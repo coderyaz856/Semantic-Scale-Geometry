@@ -1,0 +1,23 @@
+{
+  "dataset": "Salesforce/wikitext",
+  "config": "wikitext-2-raw-v1",
+  "file": "wikitext-2-raw-v1/train-00000-of-00001.parquet",
+  "revision": "b08601e04326c79dfdd32d625aee71d232d685c3",
+  "sentences": 2000,
+  "cleaning": {
+    "detokenized": "punctuation rejoined, @-@ artifacts resolved, clitics reattached",
+    "sentence_split": "(?<=[.!?])\\s+(?=[A-Z\"\\'(])"
+  },
+  "filters": {
+    "min_chars": 40,
+    "max_chars": 240,
+    "min_words": 6,
+    "latin_ratio": 0.97,
+    "must_start_uppercase": true,
+    "must_end_terminal": true,
+    "drop_headings": true,
+    "drop_unk": true,
+    "drop_remaining_at_sign": true,
+    "deduplicated": true
+  }
+}

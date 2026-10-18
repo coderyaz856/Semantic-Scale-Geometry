@@ -1,0 +1,14 @@
+# Rust
+kernel/target/
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+*.egg-info/
+
+# Outputs. Shards are large and regenerable from a model plus a seed; results
+# are small and belong in the repository once they are real.
+shards/
+dirs/
+results/*.tmp

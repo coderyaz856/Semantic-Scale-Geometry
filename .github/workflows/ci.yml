@@ -1,0 +1,60 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+# A result in this repository is a claim, and a claim that cannot be
+# regenerated is an anecdote. So the pipeline does not merely lint: it runs a
+# real end-to-end measurement on synthetic shards on every push, which is the
+# job that would have caught both bugs found while building this.
+
+jobs:
+  kernel:
+    name: rust kernel
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - name: format
+        run: cargo fmt --manifest-path kernel/Cargo.toml --check
+      - name: lint
+        run: cargo clippy --manifest-path kernel/Cargo.toml --all-targets -- -D warnings
+      - name: test
+        run: cargo test --manifest-path kernel/Cargo.toml --release
+
+  python:
+    name: python
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: install
+        # Pinned: ruff's default rule set widens between releases, so an
+        # unpinned linter fails the build on code nobody touched.
+        run: python -m pip install --quiet pyyaml ruff==0.17.1
+      - name: lint
+        run: ruff check python tools
+      - name: test
+        run: python -m unittest discover -s python/tests -v
+
+  end-to-end:
+    name: synthetic end to end
+    runs-on: ubuntu-latest
+    needs: [kernel, python]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: install
+        run: python -m pip install --quiet pyyaml
+      - name: build kernel
+        run: cargo build --manifest-path kernel/Cargo.toml --release
+      - name: measure synthetic shards
+        run: python tools/check_synthetic.py

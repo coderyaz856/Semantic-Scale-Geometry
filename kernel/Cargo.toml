@@ -1,0 +1,15 @@
+[package]
+name = "sg-measure"
+version = "0.1.0"
+edition = "2021"
+description = "Measurement kernel for semantic-scale geometry: direction fitting, rank statistics and exact permutation tests"
+
+[dependencies]
+clap = { version = "4.5.4", features = ["derive"] }
+serde = { version = "1.0.203", features = ["derive"] }
+serde_json = "1.0.117"
+
+[profile.release]
+lto = true
+codegen-units = 1
+panic = "abort"

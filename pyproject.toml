@@ -1,0 +1,34 @@
+[project]
+name = "semantic-scale-geometry"
+version = "0.1.0"
+description = "Measure lexical gradients and shared semantic subspaces in transformer embeddings"
+requires-python = ">=3.10"
+dependencies = [
+    "torch>=2.2",
+    # 5.x renamed the dtype argument; extraction passes the new spelling.
+    "transformers>=5.0",
+    "pyyaml>=6.0",
+    "numpy>=1.26",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0", "ruff>=0.5"]
+
+[project.scripts]
+sg = "scalar_geometry.cli:main"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["python"]
+
+[tool.ruff]
+line-length = 88
+
+# The rule set is pinned explicitly, and the ruff version is pinned in CI.
+# Ruff's defaults widen between releases, so relying on them means a future
+# release fails the build on code nobody touched.
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
