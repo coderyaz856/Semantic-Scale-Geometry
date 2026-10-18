@@ -1,0 +1,470 @@
+# Ordered lexical and utterance scales for measuring linguistic gradients in
+# embedding space. English only.
+#
+# Each scale is a set of items with a known ordering, rank 1 being the lowest
+# point.
+#
+# CONTEXTS
+#
+# A single carrier sentence per item would leave every statistic resting on a
+# handful of vectors. Instead each lexical item is embedded in many contexts,
+# built by crossing a pool of syntactic frames with a pool of subjects:
+#
+#     frames[slot] x subjects  ->  one context per pair
+#
+# Six frames and five subjects give thirty contexts per item, which is what
+# makes confidence intervals possible, turns context sensitivity into something
+# measured rather than assumed, and separates two factors that would otherwise
+# be confounded: the syntactic frame and the subject noun.
+#
+# Lexical items are additionally embedded bare, with no frame at all, as a
+# baseline for how much the context does.
+#
+# Utterance scales have no bare condition and no frames, because their items
+# are already whole sentences. They get their replicates by varying the object
+# the utterance is about, which holds the construction fixed while changing the
+# content, the mirror image of what the frames do.
+#
+# FIELDS
+#
+#   slot            which frame pool applies; omitted for utterance scales
+#   subjects        fillers for {subj}; lexical scales only
+#   objects         fillers for {obj}; utterance scales only
+#   family          grouping used when asking whether directions are shared
+#   polarity        unipolar (floor to ceiling) or bipolar (has a midpoint)
+#   unit            lexical or utterance
+#   gold_confidence how sure the ordering is. Scales tagged medium are kept
+#                   deliberately, and results are reported split by this tag
+#                   rather than pooled as if every ordering were equally solid.
+
+version: 0.3
+language: en
+
+# Frames are shared across scales so that the same syntactic variation applies
+# everywhere, which is what lets the frame be treated as a factor. Every frame
+# contains both {subj} and {item}. Rendered sentences have their first letter
+# capitalised afterwards, so subjects are written in their mid-sentence form.
+frames:
+  # Predicative and attributive adjectives.
+  #
+  # Two constraints shaped this pool. No frame puts an indefinite article
+  # directly before {item}, which would need a/an agreement for items like
+  # "antique" and "ancient". And no frame uses a degree modifier such as
+  # "fairly" or "quite": those resist the extremes of a scale, so "fairly
+  # scalding" and "fairly colossal" read as errors while the mid-scale items
+  # read fine. A frame like that would degrade precisely the endpoints that
+  # carry the most gradient information, which is a bias rather than mere
+  # awkwardness.
+  adjective:
+    - "The {subj} is {item}."
+    - "The {subj} was {item}."
+    - "I found the {subj} {item}."
+    - "They described the {subj} as {item}."
+    - "Everyone noticed the {item} {subj}."
+    - "What struck me was how {item} the {subj} was."
+
+  # Adjectives predicated of a person. Kept separate because the frames above
+  # read oddly with animate subjects, and because pronoun case rules out any
+  # frame that puts {subj} in object position.
+  experiencer_adjective:
+    - "{subj} seemed {item}."
+    - "{subj} was {item}."
+    - "{subj} looked {item}."
+    - "Everyone could tell {subj} was {item}."
+    - "{subj} became {item} after the meeting."
+    - "{subj} sounded {item} on the phone."
+
+  quantifier:
+    - "{item} of the {subj} passed."
+    - "{item} of the {subj} were approved."
+    - "We checked the list, and {item} of the {subj} qualified."
+    - "{item} of the {subj} responded in time."
+    - "After the audit, {item} of the {subj} remained."
+    - "It turned out that {item} of the {subj} were eligible."
+
+  frequency_adverb:
+    - "{subj} {item} arrives on time."
+    - "{subj} {item} answers the phone."
+    - "In my experience {subj} {item} finishes early."
+    - "{subj} {item} forgets the deadline."
+    - "People say {subj} {item} attends the meeting."
+    - "{subj} {item} checks the results."
+
+  modal_adjective:
+    - "It is {item} that the {subj} will succeed."
+    - "It seems {item} that the {subj} will succeed."
+    - "Most reviewers thought it {item} that the {subj} would succeed."
+    - "It is {item} that the {subj} will be completed."
+    # "Whether the {subj} succeeds is {item}" was tried here and dropped: it is
+    # grammatical for mid-scale items like "doubtful" and breaks for
+    # "impossible", "likely" and "certain", so it would have penalised the ends.
+    - "Success for the {subj} is {item}."
+    - "We consider it {item} that the {subj} will work."
+
+  deontic_adjective:
+    - "Attendance at the {subj} is {item}."
+    - "Participation in the {subj} is {item}."
+    - "The rules say that attending the {subj} is {item}."
+    - "For employees, joining the {subj} is {item}."
+    - "Registration for the {subj} is {item}."
+    - "Taking part in the {subj} is {item}."
+
+scales:
+  # ---------------------------------------------------------------- physical
+
+  - id: temperature
+    family: physical_intensity
+    polarity: unipolar
+    unit: lexical
+    slot: adjective
+    gold_confidence: high
+    subjects: [coffee, water, soup, bath, radiator]
+    items:
+      - { text: freezing, rank: 1 }
+      - { text: cold, rank: 2 }
+      - { text: cool, rank: 3 }
+      - { text: warm, rank: 4 }
+      - { text: hot, rank: 5 }
+      - { text: scalding, rank: 6 }
+
+  - id: size
+    family: physical_intensity
+    polarity: unipolar
+    unit: lexical
+    slot: adjective
+    gold_confidence: high
+    subjects: [building, package, garden, crowd, machine]
+    items:
+      - { text: tiny, rank: 1 }
+      - { text: small, rank: 2 }
+      - { text: modest, rank: 3 }
+      - { text: large, rank: 4 }
+      - { text: huge, rank: 5 }
+      - { text: colossal, rank: 6 }
+
+  - id: speed
+    family: physical_intensity
+    polarity: unipolar
+    unit: lexical
+    slot: adjective
+    gold_confidence: high
+    subjects: [train, courier, river, engine, process]
+    items:
+      - { text: stationary, rank: 1 }
+      - { text: sluggish, rank: 2 }
+      - { text: slow, rank: 3 }
+      - { text: quick, rank: 4 }
+      - { text: fast, rank: 5 }
+      - { text: blistering, rank: 6 }
+
+  - id: loudness
+    family: physical_intensity
+    polarity: unipolar
+    unit: lexical
+    slot: adjective
+    gold_confidence: high
+    subjects: [room, hall, engine, crowd, corridor]
+    items:
+      - { text: silent, rank: 1 }
+      - { text: quiet, rank: 2 }
+      - { text: hushed, rank: 3 }
+      - { text: audible, rank: 4 }
+      - { text: loud, rank: 5 }
+      - { text: deafening, rank: 6 }
+
+  - id: brightness
+    family: physical_intensity
+    polarity: unipolar
+    unit: lexical
+    slot: adjective
+    gold_confidence: high
+    subjects: [corridor, room, screen, street, workshop]
+    items:
+      - { text: pitch-black, rank: 1 }
+      - { text: dark, rank: 2 }
+      - { text: dim, rank: 3 }
+      - { text: lit, rank: 4 }
+      - { text: bright, rank: 5 }
+      - { text: blinding, rank: 6 }
+
+  - id: weight
+    family: physical_intensity
+    polarity: unipolar
+    unit: lexical
+    slot: adjective
+    gold_confidence: high
+    subjects: [crate, bag, parcel, load, beam]
+    items:
+      - { text: weightless, rank: 1 }
+      - { text: light, rank: 2 }
+      - { text: manageable, rank: 3 }
+      - { text: heavy, rank: 4 }
+      - { text: massive, rank: 5 }
+      - { text: crushing, rank: 6 }
+
+  - id: wetness
+    family: physical_intensity
+    polarity: unipolar
+    unit: lexical
+    slot: adjective
+    gold_confidence: high
+    subjects: [cloth, floor, soil, towel, paper]
+    items:
+      - { text: parched, rank: 1 }
+      - { text: dry, rank: 2 }
+      - { text: damp, rank: 3 }
+      - { text: moist, rank: 4 }
+      - { text: wet, rank: 5 }
+      - { text: soaked, rank: 6 }
+
+  - id: age
+    family: physical_intensity
+    polarity: unipolar
+    unit: lexical
+    slot: adjective
+    gold_confidence: high
+    subjects: [manuscript, building, map, recording, coin]
+    items:
+      - { text: new, rank: 1 }
+      - { text: recent, rank: 2 }
+      - { text: dated, rank: 3 }
+      - { text: old, rank: 4 }
+      - { text: antique, rank: 5 }
+      - { text: ancient, rank: 6 }
+
+  # ---------------------------------------------------------------- quantity
+
+  - id: quantity
+    family: quantity
+    polarity: unipolar
+    unit: lexical
+    slot: quantifier
+    gold_confidence: high
+    note: >
+      Quantifiers carry well-known pragmatic effects, so a model may rank them
+      correctly while spacing them very unevenly. Order and linearity are
+      especially likely to come apart here.
+    subjects: [students, applicants, samples, records, volunteers]
+    items:
+      - { text: none, rank: 1 }
+      - { text: few, rank: 2 }
+      - { text: several, rank: 3 }
+      - { text: many, rank: 4 }
+      - { text: most, rank: 5 }
+      - { text: all, rank: 6 }
+
+  - id: frequency
+    family: quantity
+    polarity: unipolar
+    unit: lexical
+    slot: frequency_adverb
+    gold_confidence: high
+    subjects: [he, she, the manager, the technician, my colleague]
+    items:
+      - { text: never, rank: 1 }
+      - { text: rarely, rank: 2 }
+      - { text: occasionally, rank: 3 }
+      - { text: sometimes, rank: 4 }
+      - { text: often, rank: 5 }
+      - { text: always, rank: 6 }
+
+  - id: completeness
+    family: quantity
+    polarity: unipolar
+    unit: lexical
+    slot: adjective
+    gold_confidence: medium
+    subjects: [repair, renovation, report, migration, inspection]
+    items:
+      - { text: untouched, rank: 1 }
+      - { text: begun, rank: 2 }
+      - { text: partial, rank: 3 }
+      - { text: substantial, rank: 4 }
+      - { text: finished, rank: 5 }
+
+  # ------------------------------------------------------------------- modal
+
+  - id: certainty
+    family: modal
+    polarity: unipolar
+    unit: lexical
+    slot: modal_adjective
+    gold_confidence: high
+    subjects: [experiment, proposal, repair, migration, trial]
+    items:
+      - { text: impossible, rank: 1 }
+      - { text: doubtful, rank: 2 }
+      - { text: unlikely, rank: 3 }
+      - { text: possible, rank: 4 }
+      - { text: likely, rank: 5 }
+      - { text: certain, rank: 6 }
+
+  - id: obligation
+    family: modal
+    polarity: unipolar
+    unit: lexical
+    slot: deontic_adjective
+    gold_confidence: high
+    subjects: [seminar, review, training, ceremony, workshop]
+    items:
+      - { text: forbidden, rank: 1 }
+      - { text: discouraged, rank: 2 }
+      - { text: optional, rank: 3 }
+      - { text: permitted, rank: 4 }
+      - { text: encouraged, rank: 5 }
+      - { text: mandatory, rank: 6 }
+
+  # -------------------------------------------------------------- evaluation
+
+  - id: valence
+    family: evaluation
+    polarity: bipolar
+    unit: lexical
+    slot: adjective
+    gold_confidence: high
+    subjects: [result, outcome, performance, design, report]
+    items:
+      - { text: terrible, rank: 1 }
+      - { text: poor, rank: 2 }
+      - { text: mediocre, rank: 3 }
+      - { text: adequate, rank: 4 }
+      - { text: good, rank: 5 }
+      - { text: excellent, rank: 6 }
+
+  - id: beauty
+    family: evaluation
+    polarity: bipolar
+    unit: lexical
+    slot: adjective
+    gold_confidence: medium
+    subjects: [design, facade, garden, painting, dress]
+    items:
+      - { text: hideous, rank: 1 }
+      - { text: ugly, rank: 2 }
+      - { text: plain, rank: 3 }
+      - { text: pleasant, rank: 4 }
+      - { text: beautiful, rank: 5 }
+      - { text: stunning, rank: 6 }
+
+  - id: difficulty
+    family: evaluation
+    polarity: unipolar
+    unit: lexical
+    slot: adjective
+    gold_confidence: high
+    subjects: [problem, exam, climb, repair, proof]
+    items:
+      - { text: trivial, rank: 1 }
+      - { text: easy, rank: 2 }
+      - { text: manageable, rank: 3 }
+      - { text: hard, rank: 4 }
+      - { text: gruelling, rank: 5 }
+      - { text: insurmountable, rank: 6 }
+
+  # ----------------------------------------------------------------- emotion
+
+  - id: anger
+    family: emotion
+    polarity: unipolar
+    unit: lexical
+    slot: experiencer_adjective
+    gold_confidence: high
+    subjects: [he, she, the manager, the child, my neighbour]
+    items:
+      - { text: calm, rank: 1 }
+      - { text: annoyed, rank: 2 }
+      - { text: irritated, rank: 3 }
+      - { text: angry, rank: 4 }
+      - { text: furious, rank: 5 }
+      - { text: enraged, rank: 6 }
+
+  - id: fear
+    family: emotion
+    polarity: unipolar
+    unit: lexical
+    slot: experiencer_adjective
+    gold_confidence: high
+    note: >
+      KNOWN CONFOUND, do not treat this scale's result as clean. Rank 1 is
+      "fearless", which is the stem of the scale plus a negating suffix rather
+      than a genuinely low point on it. The same pattern appears in "weightless"
+      and arguably in "untouched" and "stationary". A model that places a
+      negated form near its stem will order such a scale backwards, and the
+      first run did exactly that. Whether that is a fact about the model or an
+      artifact of the item choice cannot be told apart until these scales are
+      rebuilt with morphologically unrelated low poles.
+    subjects: [he, she, the manager, the child, my neighbour]
+    items:
+      - { text: fearless, rank: 1 }
+      - { text: uneasy, rank: 2 }
+      - { text: nervous, rank: 3 }
+      - { text: afraid, rank: 4 }
+      - { text: terrified, rank: 5 }
+      - { text: petrified, rank: 6 }
+
+  - id: mood
+    family: emotion
+    polarity: bipolar
+    unit: lexical
+    slot: experiencer_adjective
+    gold_confidence: high
+    subjects: [he, she, the manager, the child, my neighbour]
+    items:
+      - { text: miserable, rank: 1 }
+      - { text: sad, rank: 2 }
+      - { text: subdued, rank: 3 }
+      - { text: content, rank: 4 }
+      - { text: happy, rank: 5 }
+      - { text: elated, rank: 6 }
+
+  # --------------------------------------------------------------- pragmatic
+
+  - id: politeness
+    family: pragmatic
+    polarity: unipolar
+    unit: utterance
+    gold_confidence: high
+    note: >
+      Politeness has no single-word form, so the items are whole requests with
+      the propositional content held constant. This is the cleanest test of
+      whether a gradient can live in sentence structure rather than in a word.
+    objects: [report, file, summary, draft, notes]
+    items:
+      - { text: "Give me the {obj}.", rank: 1 }
+      - { text: "Pass me the {obj}.", rank: 2 }
+      - { text: "Can you give me the {obj}?", rank: 3 }
+      - { text: "Could you give me the {obj}?", rank: 4 }
+      - { text: "Would you mind giving me the {obj}?", rank: 5 }
+      - { text: "I was wondering whether you might be able to give me the {obj}.", rank: 6 }
+
+  - id: hedging
+    family: pragmatic
+    polarity: unipolar
+    unit: utterance
+    gold_confidence: high
+    note: Claim content held constant, commitment varied.
+    objects: [method, approach, model, procedure, design]
+    items:
+      - { text: "This might possibly suggest that the {obj} works.", rank: 1 }
+      - { text: "This may suggest that the {obj} works.", rank: 2 }
+      - { text: "This suggests that the {obj} works.", rank: 3 }
+      - { text: "This indicates that the {obj} works.", rank: 4 }
+      - { text: "This shows that the {obj} works.", rank: 5 }
+      - { text: "This proves that the {obj} works.", rank: 6 }
+
+  - id: formality
+    family: pragmatic
+    polarity: unipolar
+    unit: utterance
+    gold_confidence: medium
+    note: >
+      Ordering is conventional and less secure than the other pragmatic
+      scales, which is why it is tagged medium rather than dropped. It is
+      useful precisely as a case where the gold standard is weaker.
+    objects: [file, report, document, draft, record]
+    items:
+      - { text: "gonna need that {obj}.", rank: 1 }
+      - { text: "I need that {obj}.", rank: 2 }
+      - { text: "I will need that {obj}.", rank: 3 }
+      - { text: "I shall require that {obj}.", rank: 4 }
+      - { text: "It will be necessary to obtain that {obj}.", rank: 5 }
