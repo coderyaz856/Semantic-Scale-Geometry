@@ -45,6 +45,9 @@ jobs:
   image:
     name: build, publish and deploy
     runs-on: ubuntu-latest
+    # Recorded as a GitHub deployment, so the repository page lists the cloud
+    # environment and the history of what was deployed to it.
+    environment: google-cloud
 
     permissions:
       contents: read
