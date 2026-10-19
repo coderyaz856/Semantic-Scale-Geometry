@@ -74,9 +74,9 @@ variable "immutable_image_tags" {
 
 variable "image_cleanup_keep_versions" {
   description = <<-EOT
-    How many image versions to keep. Older ones are deleted by an Artifact
-    Registry cleanup policy, because one image per commit is the single storage
-    line in this platform that grows without bound.
+    How many of the most recent image versions a cleanup policy never touches.
+    It matters only while immutable_image_tags is false: under immutable tags,
+    tagged versions are out of every policy's reach regardless.
   EOT
   type        = number
   default     = 10
@@ -223,12 +223,12 @@ variable "job_task_timeout" {
 
 variable "job_max_retries" {
   description = <<-EOT
-    Retries per task. One covers an infrastructure fault; more would just
-    multiply the cost of a deterministic failure, which is the failure this
-    pipeline is most likely to have.
+    Retries per task. Zero is the safe default while the run directory is
+    memory-backed: a retry cannot resume and would repeat the full experiment.
+    Raise this only after completed stages are restored from durable storage.
   EOT
   type        = number
-  default     = 1
+  default     = 0
 }
 
 variable "config_uri" {

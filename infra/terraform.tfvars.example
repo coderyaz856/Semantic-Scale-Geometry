@@ -14,7 +14,7 @@ job_cpu              = "1"
 job_memory           = "2Gi"
 job_work_volume_size = "1Gi"
 job_task_timeout     = "900s"
-job_max_retries      = 1
+job_max_retries      = 0
 
 # Raw payloads are regenerable; the records that describe them are not.
 shard_retention_days  = 30

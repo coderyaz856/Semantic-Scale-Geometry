@@ -112,20 +112,21 @@ resource "google_cloud_run_v2_job" "run" {
     }
   }
 
-  # The deployment workflow owns two things after the first apply: the image,
-  # which it sets to the digest it published, and SG_CONTAINER_DIGEST, which
-  # records that digest for the run manifest. Without these exclusions every
-  # apply would revert the job to the default image and every deployment would
-  # show a spurious diff.
+  # The deployment owns two fields after the first apply: the image, which it
+  # sets to the digest it published, and the container arguments, which carry
+  # that digest to the wrapper so the run manifest can name the exact image.
+  # Terraform sets neither. Everything else, the whole environment included,
+  # stays under Terraform, so a changed bucket or dataset reaches the job on
+  # the next apply.
   #
-  # The cost is stated rather than hidden: because the whole environment block
-  # is excluded, changing one of the values above does not reach a deployed job
-  # through `apply` alone. Redeploy through the workflow, or use
-  # `terraform apply -replace=google_cloud_run_v2_job.run`.
+  # The digest travels as an argument rather than an environment variable
+  # because the provider models `env` as a set. A set element cannot be named
+  # in ignore_changes, so excluding one variable would mean excluding all of
+  # them, and an apply would then report configuration changes it never made.
   lifecycle {
     ignore_changes = [
       template[0].template[0].containers[0].image,
-      template[0].template[0].containers[0].env,
+      template[0].template[0].containers[0].args,
     ]
   }
 

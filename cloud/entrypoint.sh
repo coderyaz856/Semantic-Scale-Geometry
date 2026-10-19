@@ -8,8 +8,9 @@
 #   4. on failure, salvage the logs and exit with the runtime's own code
 #
 # Nothing here contains a credential, a project, a bucket or a path outside the
-# container. Every value arrives as an environment variable, set by the Cloud
-# Run Job in infra/cloud_run.tf, so the same image runs in any project.
+# container. Configuration arrives as environment variables, set by the Cloud
+# Run Job in infra/cloud_run.tf, so the same image runs in any project. The one
+# argument, --container-digest, is set by the deployment; see below.
 #
 # The runtime's exit code survives: a failure to upload logs must not mask the
 # failure being logged, and a successful run whose publish failed must not look
@@ -32,6 +33,26 @@ die() {
   log ERROR "$1"
   exit "${2:-1}"
 }
+
+# The deployment passes the digest of the image it deployed as an argument, not
+# as an environment variable: Terraform manages the job's environment as a
+# whole (see infra/cloud_run.tf), and the argument list is the field the
+# deployment owns instead. The runtime reads SG_CONTAINER_DIGEST into the run
+# manifest. A malformed digest is refused rather than recorded, because a wrong
+# provenance value is worse than a missing one.
+for argument in "$@"; do
+  case "${argument}" in
+    --container-digest=*)
+      SG_CONTAINER_DIGEST="${argument#*=}"
+      [[ "${SG_CONTAINER_DIGEST}" =~ ^sha256:[0-9a-f]{64}$ ]] \
+        || die "malformed container digest: ${SG_CONTAINER_DIGEST}" 2
+      export SG_CONTAINER_DIGEST
+      ;;
+    *)
+      die "unknown argument: ${argument}" 2
+      ;;
+  esac
+done
 
 if [[ -z "${CONFIG_URI:-}" ]]; then
   die "CONFIG_URI is not set: there is no experiment to run" 2
@@ -62,7 +83,7 @@ if [[ ${runtime_status} -ne 0 ]]; then
     # The run directory is memory-backed and disappears with the task, so this
     # is the only chance to keep the logs. Its own failure is reported and then
     # ignored: the exit code below belongs to the run.
-    salvage_id="${CLOUD_RUN_EXECUTION:-local}-${CLOUD_RUN_TASK_INDEX:-0}"
+    salvage_id="${CLOUD_RUN_EXECUTION:-local}-${CLOUD_RUN_TASK_INDEX:-0}-${CLOUD_RUN_TASK_ATTEMPT:-0}"
     python -m sg_cloud.salvage "${RUN_ROOT}" \
       --bucket "${ARTIFACT_BUCKET}" \
       --run-id "${salvage_id}" || log WARNING "salvage failed"

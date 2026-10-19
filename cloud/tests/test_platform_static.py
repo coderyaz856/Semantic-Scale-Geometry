@@ -411,13 +411,51 @@ class DeployWorkflowTests(unittest.TestCase):
             self.assertEqual(permission.get("id-token"), "write")
             self.assertEqual(permission.get("contents"), "read")
 
-    def test_every_action_is_pinned_to_a_version(self) -> None:
+    def test_every_action_is_pinned_to_an_immutable_commit(self) -> None:
         for match in re.finditer(r"uses:\s*(\S+)", self.text):
             reference = match.group(1)
             with self.subTest(action=reference):
-                self.assertIn("@", reference)
-                self.assertNotIn("@main", reference)
-                self.assertNotIn("@master", reference)
+                self.assertRegex(reference, r"@[0-9a-f]{40}$")
+
+    def test_retries_default_to_zero_until_resume_is_durable(self) -> None:
+        variables = (INFRA / "variables.tf").read_text(encoding="utf-8")
+        block = re.search(
+            r'variable "job_max_retries"\s*\{(.*?)\n\}',
+            variables,
+            flags=re.DOTALL,
+        )
+        self.assertIsNotNone(block)
+        self.assertRegex(block.group(1), r"default\s*=\s*0")
+
+    def test_registry_cleanup_only_deletes_untagged_images(self) -> None:
+        registry = (INFRA / "artifact_registry.tf").read_text(encoding="utf-8")
+        self.assertRegex(registry, r'tag_state\s*=\s*"UNTAGGED"')
+
+    def test_terraform_ignores_only_the_fields_the_deployment_owns(self) -> None:
+        # Ignoring `env` would hide every environment change from `apply`, and
+        # indexing into it is invalid because the provider models it as a set.
+        # The deployment owns the image and the arguments; nothing else.
+        cloud_run = (INFRA / "cloud_run.tf").read_text(encoding="utf-8")
+        block = re.search(r"ignore_changes\s*=\s*\[(.*?)\]\s*\n", cloud_run, re.DOTALL)
+        self.assertIsNotNone(block)
+        ignored = {
+            line.strip().rstrip(",")
+            for line in block.group(1).splitlines()
+            if line.strip() and not line.strip().startswith("#")
+        }
+        container = "template[0].template[0].containers[0]"
+        self.assertEqual(ignored, {f"{container}.image", f"{container}.args"})
+
+    def test_the_digest_reaches_the_job_as_an_argument(self) -> None:
+        self.assertIn(
+            '--args="--container-digest=${{ steps.digest.outputs.digest }}"',
+            self.text,
+        )
+        self.assertNotIn("--update-env-vars", self.text)
+        self.assertNotIn("SG_CONTAINER_DIGEST", self.text)
+        entrypoint = (REPO / "cloud" / "entrypoint.sh").read_text(encoding="utf-8")
+        self.assertIn("--container-digest=*)", entrypoint)
+        self.assertIn("export SG_CONTAINER_DIGEST", entrypoint)
 
     def test_the_image_tag_is_the_commit_sha(self) -> None:
         # Either spelling of the commit SHA is fine; a floating tag is not,

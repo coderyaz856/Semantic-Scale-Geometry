@@ -13,8 +13,9 @@
 FROM python:3.12-slim-bookworm
 
 COPY cloud/requirements.txt /tmp/cloud-requirements.txt
-RUN python -m pip install --no-cache-dir --upgrade pip \
- && python -m pip install --no-cache-dir -r /tmp/cloud-requirements.txt \
+# pip is used as the base image ships it, for the reason given in
+# job.Dockerfile: an unpinned upgrade on every build buys nothing here.
+RUN python -m pip install --no-cache-dir -r /tmp/cloud-requirements.txt \
  && rm /tmp/cloud-requirements.txt
 
 WORKDIR /app

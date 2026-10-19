@@ -13,9 +13,13 @@ resource "google_artifact_registry_repository" "images" {
     immutable_tags = var.immutable_image_tags
   }
 
-  # Keep the most recent versions and delete the rest. Without this, a
-  # repository that is deployed on every merge grows forever, and image storage
-  # is the one cost here that survives every job finishing.
+  # Under immutable tags a tagged version cannot be deleted, by a person or by a
+  # policy, and a tag cannot be removed. Cleanup therefore reaches untagged
+  # versions only, such as layers left behind by an interrupted push. Every
+  # deployed commit's image stays until immutability is switched off; the
+  # pruning procedure is in docs/cloud-deployment.md. That is the price of a
+  # commit SHA naming one image forever, and it is why the job image is kept
+  # small.
   cleanup_policy_dry_run = false
 
   cleanup_policies {
@@ -32,6 +36,10 @@ resource "google_artifact_registry_repository" "images" {
     action = "DELETE"
 
     condition {
+      # Stated explicitly, although immutable tags already imply it: a tagged
+      # version is out of reach, so the deployed digest cannot be cleaned up
+      # from under the job that references it.
+      tag_state  = "UNTAGGED"
       older_than = "2592000s" # 30 days
     }
   }
