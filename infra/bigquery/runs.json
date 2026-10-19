@@ -1,0 +1,92 @@
+[
+  {
+    "name": "run_id",
+    "type": "STRING",
+    "mode": "REQUIRED",
+    "description": "Immutable run identifier, derived by the runtime from the normalized configuration and input identities. Also the object prefix in the artifact bucket and the merge key of this table."
+  },
+  {
+    "name": "state",
+    "type": "STRING",
+    "mode": "REQUIRED",
+    "description": "Terminal run state as reported by status.json. Only SUCCEEDED runs are published by the adapter; FAILED rows arrive only when a failure is published deliberately."
+  },
+  {
+    "name": "created_at",
+    "type": "TIMESTAMP",
+    "mode": "REQUIRED",
+    "description": "When the run was created, from status.json. The partitioning column of this table."
+  },
+  {
+    "name": "completed_at",
+    "type": "TIMESTAMP",
+    "mode": "NULLABLE",
+    "description": "When the run reached its terminal state. Null for a run that never reached one."
+  },
+  {
+    "name": "git_commit",
+    "type": "STRING",
+    "mode": "NULLABLE",
+    "description": "Commit that produced the run. Null rather than guessed when the runtime had no repository available."
+  },
+  {
+    "name": "config_digest",
+    "type": "STRING",
+    "mode": "NULLABLE",
+    "description": "SHA-256 of the normalized experiment configuration. Two runs with the same digest ran the same experiment."
+  },
+  {
+    "name": "model_id",
+    "type": "STRING",
+    "mode": "NULLABLE",
+    "description": "Model identifier, as passed to the extractor."
+  },
+  {
+    "name": "model_revision",
+    "type": "STRING",
+    "mode": "NULLABLE",
+    "description": "Pinned model revision. Null means the run did not pin one, which makes its embeddings irreproducible; it is recorded as null rather than filled in with a resolved value the run did not actually use."
+  },
+  {
+    "name": "scales_digest",
+    "type": "STRING",
+    "mode": "NULLABLE",
+    "description": "Digest of the scale definitions. The orderings are the ground truth, so a changed digest means the benchmark changed, not the model."
+  },
+  {
+    "name": "background_digest",
+    "type": "STRING",
+    "mode": "NULLABLE",
+    "description": "Digest of the background corpus used to estimate dominant directions."
+  },
+  {
+    "name": "container_digest",
+    "type": "STRING",
+    "mode": "NULLABLE",
+    "description": "Digest of the image that executed the run, when the image supplied one."
+  },
+  {
+    "name": "device",
+    "type": "STRING",
+    "mode": "NULLABLE",
+    "description": "Device string used for extraction, for example cpu or cuda. Embeddings are not bit-identical across devices."
+  },
+  {
+    "name": "duration_seconds",
+    "type": "FLOAT",
+    "mode": "NULLABLE",
+    "description": "Wall-clock duration of the run, taken from status.json or the manifest, whichever the runtime filled. Never computed from the two timestamps, which may not mean the same thing."
+  },
+  {
+    "name": "artifact_uri",
+    "type": "STRING",
+    "mode": "NULLABLE",
+    "description": "gs:// prefix holding the uploaded run directory. Set by the adapter, not by the runtime."
+  },
+  {
+    "name": "error_code",
+    "type": "STRING",
+    "mode": "NULLABLE",
+    "description": "Machine-readable failure code from status.json. Null for a successful run."
+  }
+]

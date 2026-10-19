@@ -1,0 +1,19 @@
+# BuildKit reads <dockerfile>.dockerignore in preference to the context root's
+# .dockerignore, which is how this build excludes a local working tree without
+# adding a file to the repository root.
+#
+# The context is the repository root, and a local tree there can hold a
+# gigabyte of compiled artifacts, virtual environments and shards. None of it
+# belongs in an image, and all of it would be uploaded to the daemon first.
+.git
+.github
+.venv
+**/__pycache__
+**/*.pyc
+kernel/target
+shards
+dirs
+results
+infra
+docs
+*.md

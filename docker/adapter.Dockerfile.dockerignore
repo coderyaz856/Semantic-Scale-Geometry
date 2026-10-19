@@ -1,0 +1,7 @@
+# The adapter image needs `cloud/` and nothing else, so the ignore file is
+# written the other way round: exclude everything, then re-include the one
+# directory. A context that cannot grow cannot slow the build down later.
+*
+!cloud
+cloud/**/__pycache__
+cloud/**/*.pyc
