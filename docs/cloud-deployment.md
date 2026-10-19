@@ -529,6 +529,11 @@ with the commands below.
 Everything above this line is inert. Each command below is not.
 
 ```sh
+# 0. Terraform enables the other APIs through these two, so they must already
+#    be on. A new project has neither. Enabling them is free.
+gcloud services enable cloudresourcemanager.googleapis.com \
+  serviceusage.googleapis.com --project=<project>
+
 # 1. Enable the APIs and create the resources. Free in itself, except that
 #    some of what it creates can hold data. Review the plan first.
 terraform -chdir=infra init
