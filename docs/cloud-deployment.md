@@ -12,7 +12,7 @@ resources](#commands-that-create-billable-resources), and nowhere else.
 ## Contents
 
 - [Architecture](#architecture)
-- [The interface this is built against](#the-interface-this-is-built-against)
+- [Runtime interface](#runtime-interface)
 - [Terraform](#terraform)
 - [BigQuery schema decisions](#bigquery-schema-decisions)
 - [Identity and permissions](#identity-and-permissions)
@@ -23,7 +23,7 @@ resources](#commands-that-create-billable-resources), and nowhere else.
 - [Validation](#validation)
 - [Commands that create billable resources](#commands-that-create-billable-resources)
 - [Teardown](#teardown)
-- [Assumptions to reconcile](#assumptions-to-reconcile)
+- [Integrated contract decisions](#integrated-contract-decisions)
 
 ## Architecture
 
@@ -62,10 +62,9 @@ the adapter is wrong.
 and an end. A Cloud Run Job holds no idle capacity between executions, so
 there is no minimum instance count to remember to set to zero.
 
-## The interface this is built against
+## Runtime interface
 
-The runtime is being implemented on a separate branch. This platform targets
-the frozen contract from `docs/production-roadmap.md`:
+The platform and runtime are validated together against this command:
 
 ```text
 sg run --config /config/experiment.yaml --run-root /work/runs
@@ -85,7 +84,27 @@ the result documents by shape rather than by filename: an object with a
 `observed` object is a subspace analysis. The exact key spellings it accepts
 are listed in one place, `STATUS_FIELDS` and `MANIFEST_FIELDS` in
 `cloud/sg_cloud/runs.py`, and a field no source supplies is published as null
-rather than inferred. See [Assumptions to reconcile](#assumptions-to-reconcile).
+rather than inferred. A cross-contract test builds a manifest with the runtime
+module and verifies the BigQuery provenance row produced by the adapter.
+
+The configuration is fetched to `/config`, so repository inputs and tools must
+use their absolute paths inside the image. A cloud configuration therefore uses
+paths such as:
+
+```yaml
+scales: /app/data/scales/scales.yaml
+background: /app/data/background/wikitext2.txt
+model:
+  device: cpu
+execution:
+  kernel_binary: sg-measure
+  subspace_binary: sg-subspace
+  report_script: /app/tools/report.py
+```
+
+The model identifier, exact 40-character model revision, and remaining
+analysis fields follow [`docs/runtime.md`](runtime.md). Relative paths remain
+appropriate for local configurations stored beside their inputs.
 
 ## Terraform
 
@@ -178,15 +197,26 @@ is usually the merge rather than the query.
 ### Two columns that are not simple renames
 
 **`significant`.** The measurement files contain p-values; the schema asks for
-a decision. The adapter applies Benjamini-Hochberg over one family — the
-scales sharing a run, model, layer, condition and `remove_top` — which is the
-same family the repository's own report uses. Two warnings travel with it. If
-the layer or the preprocessing setting was chosen after looking at results,
-the real family is larger and the survivors are optimistic. And a scale that
-does not survive has not been shown to lack a gradient: with six items the
-test has little power, and the exact permutation p-value has a floor of 1/k!,
-which for a five-item scale is 0.0083 however perfectly it is ordered. The
-authoritative figure is the report in the run directory. If a measurement
+a decision. The adapter applies Benjamini-Hochberg over one family: the scales
+sharing a run, model, layer and `remove_top` within one condition **group**.
+Carrier and utterance conditions form the contextual group, every scale once,
+which is the family `tools/report.py` corrects over; bare items are corrected
+as a group of their own. The unit is the group rather than the single
+condition, and the difference is not cosmetic. Correcting the three utterance
+scales among themselves would make their thresholds seven times more lenient,
+and on the saved results that per-condition definition disagrees with the
+report in 18 of 21 layer and setting cells.
+`python/tests/test_cloud_contract.py` holds the two decisions equal on every
+saved layer.
+
+Two warnings travel with the decision. If the layer or the preprocessing
+setting was chosen after looking at results, the real family is larger and the
+survivors are optimistic. And a scale that does not survive has not been shown
+to lack a gradient. The exact permutation p-value has a floor of 1/k!, which
+is 0.0083 for the two five-item scales and 0.0014 for the six-item ones,
+however perfectly a scale is ordered. The inference model is set out in
+`docs/statistical-inference.md`. The authoritative figure is the report in the
+run directory. If a measurement
 document ever carries its own `significant` field, that field wins and the
 adapter stops deciding.
 
@@ -295,6 +325,14 @@ runtime's dependency set; the final image copies both results, runs as uid
 permission. `/work` and `/config` are the only writable paths, and in the job
 both are memory-backed volumes.
 
+The runtime is installed as a package, so `sg` is its real console script and
+`sg run` performs extraction in the job. That makes torch a dependency of the
+image. pip's default Linux torch wheel is the CUDA build, which brings several
+gigabytes of GPU libraries to a job that runs on CPU, so the CPU build is
+installed from the PyTorch CPU index first and `pip install .` finds it
+satisfied. Image size matters more than usual here, because every deployed
+image is kept (see [Storage](#storage)).
+
 **`docker/adapter.Dockerfile`** is the adapter alone, for publishing a run
 produced elsewhere. It exists because the two jobs have different dependency
 sets and different trust requirements: the identity that publishes never needs
@@ -308,9 +346,22 @@ the cloud.
 
 Base images are pinned by version tag, not by digest. A digest that has not
 been observed is a fiction, and nothing here has been built yet. The
-deployment workflow records the digest of what it actually pushed, and sets
-`SG_CONTAINER_DIGEST` on the job so a run manifest can name the exact image
-that produced it.
+deployment workflow records the digest of what it actually pushed and passes
+it to the job as the container argument `--container-digest=sha256:...`. The
+wrapper checks its form and exports it as `SG_CONTAINER_DIGEST`, which the
+runtime writes into the run manifest, so a run can name the exact image that
+produced it.
+
+Why an argument and not an environment variable: Terraform manages the job's
+environment, and the provider models `env` as a set, so one variable cannot be
+excluded from Terraform's management without excluding all of them. If all of
+them were excluded, a changed bucket or dataset would never reach the job, and
+`apply` would still report success. So Terraform ignores exactly two fields,
+the image and the arguments, both owned by the deployment.
+
+One consequence: `gcloud run jobs execute --args=...` replaces the arguments
+for that execution, and the manifest of that run then records no digest. It
+records null, not a wrong value.
 
 Build context is the repository root. BuildKit reads
 `docker/<name>.Dockerfile.dockerignore`, which is how a local working tree of
@@ -357,16 +408,17 @@ expressed as resource attributes and query parameters.
 | control | where | default |
 | --- | --- | --- |
 | task timeout | `job_task_timeout` | 1800s |
-| retries | `job_max_retries` | 1 |
+| retries | `job_max_retries` | 0 |
 | CPU limit | `job_cpu` | 1 |
 | memory limit | `job_memory` | 2Gi |
 | tasks, parallelism | `cloud_run.tf` | 1, 1 |
 | minimum instances | not applicable | a job holds no idle capacity |
 
 The timeout is the main defence: a hung run cannot bill for longer than one
-task timeout per retry. One retry rather than three, because this pipeline's
-likeliest failure is deterministic, and retrying a deterministic failure just
-multiplies its cost.
+task timeout. Retries default to zero because `/work` is memory-backed. A new
+attempt cannot resume a completed extraction or measurement stage, so it would
+repeat the full experiment and its cost. Retries should be enabled only after
+the runtime can restore completed stages from durable storage.
 
 ### BigQuery
 
@@ -388,14 +440,36 @@ is the only ceiling, and it is per query rather than per day.
 
 Lifecycle rules are in the table above. The one cost that survives every job
 finishing is storage: objects in the bucket and image versions in the
-registry. Hence the `.f32` expiry and the registry cleanup policy that keeps
-the most recent versions and deletes the rest.
+registry. Hence the `.f32` expiry in the bucket.
+
+The registry behaves differently, and it is worth being exact about. Under
+immutable tags a tagged version cannot be deleted, by a person or by a cleanup
+policy, and a tag cannot be removed. The cleanup policy therefore reaches
+untagged versions only, such as layers left by an interrupted push. Every
+deployed commit's image is kept. That is the price of a commit SHA naming one
+image forever. It also means automatic cleanup can never delete the image the
+job references.
+
+To prune by hand, switch immutability off, delete, and switch it back on:
+
+```sh
+terraform -chdir=infra apply -var-file=terraform.tfvars -var immutable_image_tags=false
+gcloud artifacts docker images list <region>-docker.pkg.dev/<project>/<repo>/measure --include-tags
+gcloud artifacts docker images delete <region>-docker.pkg.dev/<project>/<repo>/measure@<old-digest> --delete-tags
+terraform -chdir=infra apply -var-file=terraform.tfvars
+```
+
+Never delete the digest the job currently references:
+`gcloud run jobs describe <job> --region <region> --format='value(spec.template.spec.template.spec.containers[0].image)'`
+prints it.
 
 ### What keeps accruing cost after a job stops
 
 - **Cloud Storage**: every object, until a lifecycle rule or a human removes
   it. This is the main one.
-- **Artifact Registry**: every image version, bounded by the cleanup policy.
+- **Artifact Registry**: every deployed image version, until pruned by hand
+  as described under [Storage](#storage). Growth is one image per deployed
+  commit.
 - **BigQuery storage**: the ledger tables. Small, but not zero.
 - **BigQuery queries**: whatever anyone runs afterwards, which is precisely
   why `maximum_bytes_billed` is set in the adapter and why project quotas are
@@ -426,24 +500,29 @@ What ran in the environment this was written in:
 | `deploy.yml` parsed as YAML, triggers and permissions asserted | pass |
 | scan for project ids, addresses, keys and local paths | pass |
 | Terraform brace balance, declared-against-used variables, descriptions | pass |
+| `python -m unittest discover -s python/tests`, including the runtime-to-cloud contract test | pass |
+| `ruff check python tools cloud` and `ruff format --check cloud` (ruff 0.17.1, as pinned in CI) | pass |
+| `terraform -chdir=infra fmt -check -recursive` (Terraform 1.16.6) | pass |
+| `terraform -chdir=infra init -backend=false` | pass, `hashicorp/google` 6.50.0 |
+| `terraform -chdir=infra validate` | pass, no errors, no warnings |
+| `hadolint docker/job.Dockerfile docker/adapter.Dockerfile` (2.15.1) | pass |
 | `git diff --check` | pass |
 
-What could **not** run, because the tool is not installed here:
+`init` writes `infra/.terraform.lock.hcl`, which is committed with hashes for
+Linux, macOS and Windows, so `init` in Cloud Shell or on a workstation selects
+the same provider build without rewriting the file.
 
-| check | command to run before applying |
-| --- | --- |
-| Terraform formatting | `terraform -chdir=infra fmt -check` |
-| Terraform initialisation | `terraform -chdir=infra init -backend=false` |
-| Terraform validation | `terraform -chdir=infra validate` |
-| Dockerfile linting | `hadolint docker/job.Dockerfile docker/adapter.Dockerfile` |
-| Image build | `docker build -f docker/job.Dockerfile .` |
+`validate` checks every resource attribute against the provider's schema,
+which the static checks in `cloud/tests/test_platform_static.py` cannot do. It
+caught one defect they could not: an `ignore_changes` entry that indexed into
+`env`, which the provider models as a set. That is why the digest now travels
+as an argument; see [Containers](#containers).
 
-The static checks in `cloud/tests/test_platform_static.py` are not a
-substitute for `terraform validate`: they cannot tell whether a provider
-attribute exists. In particular the provider is constrained to `~> 6.0`
-because the job uses v2 attributes — memory-backed `empty_dir` volumes and
-`deletion_protection` — that are not in every 5.x provider. `init` followed by
-`validate` is the first command to run, and the first that can prove it.
+The image build, `docker build -f docker/job.Dockerfile .`, runs in the cloud,
+not on a workstation. Until a build has produced a real digest, nothing in
+this document should be read as claiming the image is reproducible by digest.
+`terraform plan` needs credentials and reads the live project, so it belongs
+with the commands below.
 
 ## Commands that create billable resources
 
@@ -508,33 +587,20 @@ gcloud services disable run.googleapis.com --project <project>  # optional
 `destroy` does not disable the APIs: another component in the project may
 depend on one, so disabling is a separate, deliberate act.
 
-## Assumptions to reconcile
+## Integrated contract decisions
 
-These are the places where this platform had to assume something about a
-runtime that does not exist yet. Each is a one-file change, and each is
-covered by a test that will fail if the assumption turns out to be wrong.
-
-1. **`sg run` is the entry point and the subcommand exists.** The job image
-   provides `sg` as a shim onto the existing module, because the console
-   script only exists after an installation. When the runtime branch merges
-   and the package is installed properly, the shim becomes redundant rather
-   than wrong. The build-time validation deliberately does not invoke
-   `sg run`, since asserting it today would assert a fiction.
-2. **`status.json` carries `run_id`, `state`, `created_at`, `completed_at`,
-   `error_code`.** `created_at` is required: it is the partitioning column of
-   `runs`. The accepted spellings are in `STATUS_FIELDS`.
-3. **`manifest.json` carries the provenance fields**, flat or nested one level
-   (`model.id`, `inputs.scales_digest`). Accepted spellings are in
-   `MANIFEST_FIELDS`; anything absent is published as null and logged.
-4. **Result documents are classified by shape**, in `measurements/` and
-   `report/`. If the runtime puts the subspace analysis elsewhere, add the
-   directory to `RESULT_DIRECTORIES`.
-5. **The run directory is the only state.** The wrapper locates it by looking
-   for the single directory under the run root that holds a `status.json`, and
-   refuses to guess between two. If `sg run` prints its run id, the wrapper
-   should read that instead.
-6. **`duration_seconds` comes from `status.json` or the manifest.** Whichever
-   the runtime fills; if neither, the column is null rather than computed from
-   timestamps that may mean different things.
-7. **`significant` is decided by the adapter** until the runtime emits it. See
+1. **`sg run` is installed from the project package.** The job image contains
+   the full extraction dependencies and validates the production subcommand at
+   build time.
+2. **Manifest provenance follows the runtime schema.** Model metadata lives at
+   `config.model`, while input identities use `inputs.scales_sha256` and
+   `inputs.background_sha256`.
+3. **Result documents are classified by shape** in `measurements/` and
+   `report/`, so harmless filename changes do not break publication.
+4. **The run root must contain one run.** Each Cloud Run task starts with an
+   empty memory-backed volume, and the publisher refuses to guess if that
+   invariant is violated.
+5. **`duration_seconds` comes from `status.json`.** It is the sum of completed
+   runtime stage durations.
+6. **`significant` is decided by the adapter** until the runtime emits it. See
    the schema section above for the family definition and its two warnings.
