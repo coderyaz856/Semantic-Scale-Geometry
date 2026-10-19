@@ -19,12 +19,15 @@
 # Build context is the repository root:
 #   docker build -f docker/job.Dockerfile -t <tag> .
 
-FROM rust:1.83-bookworm AS kernel
+# 1.85 is the oldest toolchain the locked clap release accepts. The lock file
+# is copied and enforced, so the kernel is built from the reviewed dependency
+# versions rather than whatever crates.io resolves on the day of the build.
+FROM rust:1.88-bookworm AS kernel
 WORKDIR /build
-COPY kernel/Cargo.toml ./kernel/Cargo.toml
+COPY kernel/Cargo.toml kernel/Cargo.lock ./kernel/
 COPY kernel/src ./kernel/src
-RUN cargo build --release --manifest-path kernel/Cargo.toml \
- && cargo test --release --manifest-path kernel/Cargo.toml
+RUN cargo build --release --locked --manifest-path kernel/Cargo.toml \
+ && cargo test --release --locked --manifest-path kernel/Cargo.toml
 
 # A separate stage for the adapter's dependencies. Its wheels never touch the
 # runtime stage's resolver, and the final image copies only the result.
