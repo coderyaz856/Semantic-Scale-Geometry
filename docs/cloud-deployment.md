@@ -480,14 +480,34 @@ prints it.
 Not accruing: the Cloud Run Job itself, which bills only while a task runs,
 and the service account, the dataset definition and the APIs, which are free.
 
-### The first workload
+### The first execution
 
-Keep the first smoke run deliberately tiny: one model, one or two layers, the
-`synth` path or a single small shard, and a configuration whose extraction
-fits inside the task timeout with room to spare. The purpose of the first run
-is to prove the path end to end and to produce a real cost figure. Until that
-figure exists, every number in this document about what a run costs would be
-arithmetic rather than a measurement, so there are none.
+The first execution proved the path end to end: configuration fetched from the
+bucket, model downloaded at a pinned revision, every runtime stage, the run
+directory uploaded and the ledger loaded. It ran on 19 October 2026 from commit
+`baef7a9`, image digest
+`sha256:5dbc9999f40b35144f6e9d784626a1943a5de67e1acb3805bcef662040d004e8`,
+with `sentence-transformers/all-MiniLM-L6-v2` at revision
+`1110a243fdf4706b3f48f1d95db1a4f5529b4d41`, on 1 vCPU and 2 GiB. The
+configuration kept one preprocessing setting (`removals: [0]`) and reduced the
+random, bootstrap and null draws to 1,000, 200 and 20.
+
+| quantity | value |
+| --- | --- |
+| run id | `bdd317c9ca8322e9426d` |
+| runtime stages, from the run status | 135 s |
+| whole execution, including model download and publishing | 3 min 30 s |
+| `scale_measurements` rows | 287: 41 per layer, 7 layers |
+| `subspace_summaries` rows | 7 |
+| significant after correction | 5, all at layer 6 |
+
+The significance decisions reproduce those computed from the saved results in
+`results/` at the same setting: the same five scales (beauty, brightness,
+loudness, size and valence, carrier condition, layer 6) and none at layers 0 to
+5. The exact permutation p-values do not depend on the reduced draws, which is
+why the decisions can agree although the configurations differ.
+
+Cost figures will be added from the billing report rather than estimated.
 
 ## Validation
 
@@ -529,6 +549,11 @@ with the commands below.
 Everything above this line is inert. Each command below is not.
 
 ```sh
+# 0. Terraform enables the other APIs through these two, so they must already
+#    be on. A new project has neither. Enabling them is free.
+gcloud services enable cloudresourcemanager.googleapis.com \
+  serviceusage.googleapis.com --project=<project>
+
 # 1. Enable the APIs and create the resources. Free in itself, except that
 #    some of what it creates can hold data. Review the plan first.
 terraform -chdir=infra init
@@ -545,8 +570,26 @@ gcloud iam workload-identity-pools providers create-oidc github \
   --attribute-mapping=google.subject=assertion.sub,attribute.repository=assertion.repository \
   --attribute-condition='assertion.repository=="<owner>/<repo>"' \
   --project=<project>
+gcloud services enable iamcredentials.googleapis.com sts.googleapis.com \
+  --project=<project>
+# The deploying identity, with the three grants the workflow needs and no more.
+gcloud iam service-accounts create sg-dev-deployer --project=<project>
+gcloud artifacts repositories add-iam-policy-binding images \
+  --location=<region> --role=roles/artifactregistry.writer \
+  --member=serviceAccount:sg-dev-deployer@<project>.iam.gserviceaccount.com
+gcloud run jobs add-iam-policy-binding sg-dev-run --region=<region> \
+  --role=roles/run.developer \
+  --member=serviceAccount:sg-dev-deployer@<project>.iam.gserviceaccount.com
+gcloud iam service-accounts add-iam-policy-binding \
+  sg-dev-runtime@<project>.iam.gserviceaccount.com \
+  --role=roles/iam.serviceAccountUser \
+  --member=serviceAccount:sg-dev-deployer@<project>.iam.gserviceaccount.com
 # Bind the deploying service account to that pool, restricted to one
 # repository. An unrestricted binding lets any repository deploy.
+gcloud iam service-accounts add-iam-policy-binding \
+  sg-dev-deployer@<project>.iam.gserviceaccount.com \
+  --role=roles/iam.workloadIdentityUser \
+  --member=principalSet://iam.googleapis.com/projects/<number>/locations/global/workloadIdentityPools/github/attribute.repository/<owner>/<repo>
 
 # 3. Build and push an image. Billable: registry storage.
 docker build -f docker/job.Dockerfile -t <region>-docker.pkg.dev/<project>/<repo>/measure:<sha> .
