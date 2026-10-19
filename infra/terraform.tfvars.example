@@ -1,0 +1,22 @@
+# Copy to terraform.tfvars, which is ignored by git, and set the project.
+# Every other value has a default; the ones below are the ones worth a second
+# look before the first apply.
+
+project_id = "replace-with-your-project-id"
+
+region            = "europe-west1"
+bigquery_location = "EU"
+environment       = "dev"
+
+# The first smoke workload is deliberately tiny. Raise these only after a run
+# has completed end to end and its cost is known rather than estimated.
+job_cpu              = "1"
+job_memory           = "2Gi"
+job_work_volume_size = "1Gi"
+job_task_timeout     = "900s"
+job_max_retries      = 1
+
+# Raw payloads are regenerable; the records that describe them are not.
+shard_retention_days  = 30
+nearline_after_days   = 30
+run_delete_after_days = 0

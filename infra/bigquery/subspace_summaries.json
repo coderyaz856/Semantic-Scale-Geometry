@@ -1,0 +1,86 @@
+[
+  {
+    "name": "run_id",
+    "type": "STRING",
+    "mode": "REQUIRED",
+    "description": "Run that produced this row. Part of the merge key and the first clustering column."
+  },
+  {
+    "name": "model_id",
+    "type": "STRING",
+    "mode": "REQUIRED",
+    "description": "Model identifier the directions were fitted in."
+  },
+  {
+    "name": "layer",
+    "type": "INTEGER",
+    "mode": "REQUIRED",
+    "description": "Hidden-layer index. The partitioning column."
+  },
+  {
+    "name": "condition",
+    "type": "STRING",
+    "mode": "REQUIRED",
+    "description": "Context condition. Directions from different conditions are not pooled."
+  },
+  {
+    "name": "remove_top",
+    "type": "INTEGER",
+    "mode": "REQUIRED",
+    "description": "Number of dominant background components projected out before fitting."
+  },
+  {
+    "name": "n_directions",
+    "type": "INTEGER",
+    "mode": "REQUIRED",
+    "description": "Scale directions in this group. The hard ceiling on every dimensionality below: n directions span at most n dimensions, so these figures describe the selected scales, not semantics."
+  },
+  {
+    "name": "effective_dimensions",
+    "type": "FLOAT",
+    "mode": "NULLABLE",
+    "description": "Participation ratio of the stacked directions' spectrum: a threshold-free effective dimensionality."
+  },
+  {
+    "name": "matched_null_dimensions",
+    "type": "FLOAT",
+    "mode": "NULLABLE",
+    "description": "Mean effective dimensionality over shuffled-label replicates: the same items, contexts, preprocessing and fit, with only the ordering destroyed. A random-vector null would sit near n_directions and would claim far stronger evidence than exists, because a fitted direction necessarily lies in the row space of its own centred item matrix."
+  },
+  {
+    "name": "dimension_gap",
+    "type": "FLOAT",
+    "mode": "NULLABLE",
+    "description": "matched_null_dimensions minus effective_dimensions. Positive means the fitted directions occupy fewer dimensions than the matched null, which is the evidence for sharing."
+  },
+  {
+    "name": "dimensions_90",
+    "type": "INTEGER",
+    "mode": "NULLABLE",
+    "description": "Components needed to carry 90 percent of the spectral energy."
+  },
+  {
+    "name": "dimensions_99",
+    "type": "INTEGER",
+    "mode": "NULLABLE",
+    "description": "Components needed to carry 99 percent. Equal to n_directions means no direction in the group is redundant."
+  },
+  {
+    "name": "mean_absolute_cosine",
+    "type": "FLOAT",
+    "mode": "NULLABLE",
+    "description": "Mean absolute pairwise cosine between scale directions: how much they overlap at all, before any spectral summary."
+  },
+  {
+    "name": "half_split_cosine",
+    "type": "FLOAT",
+    "mode": "NULLABLE",
+    "description": "Median absolute cosine between directions fitted on two disjoint halves of the contexts. A direction that depends on which contexts it saw is not a direction."
+  },
+  {
+    "name": "permutation_p",
+    "type": "FLOAT",
+    "mode": "NULLABLE",
+    "description": "One-sided share of shuffled-label replicates whose effective dimensionality is at or below the observed one, plus one over replicates plus one. Floored at 1/(replicates+1), so with fifty replicates 0.0196 is the floor and not a measurement."
+  }
+]
