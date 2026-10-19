@@ -1,5 +1,8 @@
 # Semantic Scale Geometry
 
+[![ci](https://github.com/coderyaz856/Semantic-Scale-Geometry/actions/workflows/ci.yml/badge.svg)](https://github.com/coderyaz856/Semantic-Scale-Geometry/actions/workflows/ci.yml)
+[![deploy to Google Cloud](https://github.com/coderyaz856/Semantic-Scale-Geometry/actions/workflows/deploy.yml/badge.svg)](https://github.com/coderyaz856/Semantic-Scale-Geometry/actions/workflows/deploy.yml)
+
 **Does an embedding model know that *scalding* is hotter than *warm*, and is "hotter" a straight line in its space?**
 
 Status: research prototype. The numbers below come from one small model and
@@ -324,6 +327,22 @@ bit-for-bit identity across hardware backends. `sg run` requires an exact model
 commit, derives an immutable run identity from the configuration and inputs,
 and records the Git state, container digest, dependencies, hardware, timings,
 and output hashes in its manifest.
+
+## Running on Google Cloud
+
+Production runs execute on Google Cloud. Terraform in [`infra/`](infra/)
+defines a Cloud Run Job, an Artifact Registry repository, a private Cloud
+Storage bucket and a BigQuery ledger. The [`deploy`](.github/workflows/deploy.yml)
+workflow builds the job image from a commit, publishes it and updates the job by
+digest, authenticating through Workload Identity Federation with no stored key.
+Each run uploads its directory to the bucket and its provenance and
+measurements to BigQuery.
+
+The first cloud execution, on 19 October 2026, ran `all-MiniLM-L6-v2` at a
+pinned revision on 1 vCPU and 2 GiB in 3 min 30 s. It reproduced the
+significance decisions of the saved results in `results/`: the same five scales
+at layer 6 and none at layers 0 to 5. The record is in
+[`docs/cloud-deployment.md`](docs/cloud-deployment.md#the-first-execution).
 
 ## Cost
 
