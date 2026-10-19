@@ -158,19 +158,29 @@ class SignificanceTests(unittest.TestCase):
         self.addCleanup(temp.cleanup)
         run = runs.load(runfixture.build(Path(temp.name)))
         results = [
-            {"scale_id": f"s{i}", "condition": condition, "remove_top": 0,
-             "p_permutation": 0.002 if (condition, i) == ("bare", 0) else 0.5}
+            {
+                "scale_id": f"s{i}",
+                "condition": condition,
+                "remove_top": 0,
+                "p_permutation": 0.002 if (condition, i) == ("bare", 0) else 0.5,
+            }
             for condition in ("bare", "carrier")
             for i in range(19)
         ] + [
-            {"scale_id": f"u{i}", "condition": "utterance", "remove_top": 0,
-             "p_permutation": 0.5}
+            {
+                "scale_id": f"u{i}",
+                "condition": "utterance",
+                "remove_top": 0,
+                "p_permutation": 0.5,
+            }
             for i in range(3)
         ]
         document = {"model": "m", "layer": 3, "results": results}
         rows = records.measurement_rows(run, [("layer03.json", document)])
 
-        significant = {(r["condition"], r["scale_id"]) for r in rows if r["significant"]}
+        significant = {
+            (r["condition"], r["scale_id"]) for r in rows if r["significant"]
+        }
         self.assertEqual(significant, {("bare", "s0")})
 
     def test_an_explicit_decision_from_the_runtime_wins(self) -> None:
