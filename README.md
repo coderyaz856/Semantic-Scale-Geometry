@@ -285,6 +285,10 @@ and preserved by the two publication branches.
 Python 3.10 or newer and a Rust toolchain are required. The fast verification
 path does not download a transformer model or require a GPU.
 
+For a versioned, resumable production run with immutable output identities,
+automatic manifests, and structured status, see
+[`docs/runtime.md`](docs/runtime.md).
+
 ```sh
 python -m venv .venv
 python -m pip install -e ".[dev]"
@@ -313,10 +317,10 @@ Two properties are enforced by the current tests:
 
 Extraction uses fixed-length padding, float32 inference and deterministic
 algorithm requests to reduce avoidable variation. This is not a claim of
-bit-for-bit identity across hardware backends. Manifest utilities can record a
-commit, dirty-tree state, container digest and configuration digest, but they
-are not yet wired into `sg extract`; model-revision pinning and automatic
-manifest emission are the next reproducibility milestone.
+bit-for-bit identity across hardware backends. `sg run` requires an exact model
+commit, derives an immutable run identity from the configuration and inputs,
+and records the Git state, container digest, dependencies, hardware, timings,
+and output hashes in its manifest.
 
 ## Cost
 

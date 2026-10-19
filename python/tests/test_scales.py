@@ -192,9 +192,7 @@ class TheRealScaleFile(unittest.TestCase):
         for row in self.rows:
             if row.condition == BARE:
                 continue
-            self.assertTrue(
-                row.text[0].isupper(), f"not capitalised: {row.text!r}"
-            )
+            self.assertTrue(row.text[0].isupper(), f"not capitalised: {row.text!r}")
 
     def test_no_frame_uses_a_degree_modifier(self) -> None:
         """Degree modifiers resist the ends of a scale.
@@ -218,9 +216,7 @@ class TheRealScaleFile(unittest.TestCase):
     def test_summary_counts_agree_with_the_rows(self) -> None:
         summary = summarize(self.scales)
         self.assertEqual(summary["rows"], len(self.rows))
-        self.assertEqual(
-            summary["items"], sum(len(s.items) for s in self.scales)
-        )
+        self.assertEqual(summary["items"], sum(len(s.items) for s in self.scales))
         self.assertEqual(
             summary["lexical_scales"] + summary["utterance_scales"], summary["scales"]
         )
