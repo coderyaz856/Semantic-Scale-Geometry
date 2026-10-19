@@ -62,9 +62,9 @@ class LoadTests(TempRun):
 
 class ProvenanceTests(TempRun):
     def test_absent_fields_are_reported_not_invented(self) -> None:
-        manifest = dict(runfixture.MANIFEST)
-        del manifest["model_revision"]
-        del manifest["background_digest"]
+        manifest = json.loads(json.dumps(runfixture.MANIFEST))
+        del manifest["config"]["model"]["revision"]
+        del manifest["inputs"]["background_sha256"]
         run = runs.load(runfixture.build(self.root, manifest=manifest))
         self.assertIsNone(run.manifest_field("model_revision"))
         self.assertEqual(

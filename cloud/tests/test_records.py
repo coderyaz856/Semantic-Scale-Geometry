@@ -24,7 +24,7 @@ class RowTests(unittest.TestCase):
         self.assertEqual(row["state"], "SUCCEEDED")
         self.assertEqual(row["created_at"], "2026-10-18T09:00:00Z")
         self.assertEqual(row["completed_at"], "2026-10-18T09:04:12Z")
-        self.assertEqual(row["model_revision"], runfixture.MANIFEST["model_revision"])
+        self.assertEqual(row["model_revision"], runfixture.MODEL_REVISION)
         self.assertEqual(row["artifact_uri"], "gs://bucket/runs/r-0123456789ab")
         self.assertIsNone(row["error_code"])
 
@@ -40,7 +40,7 @@ class RowTests(unittest.TestCase):
         self.assertEqual(row["unsupervised_pc1_share"], 0.35)
         self.assertEqual(row["permutation_p"], 0.0002)
         self.assertEqual(row["context_stability"], 0.09)
-        self.assertEqual(row["model_id"], runfixture.MANIFEST["model_id"])
+        self.assertEqual(row["model_id"], runfixture.MODEL_ID)
 
     def test_subspace_gap_is_computed_from_its_own_operands(self) -> None:
         rows = records.subspace_rows(self.run_dir, self.run_dir.subspace_documents())
@@ -121,6 +121,57 @@ class SignificanceTests(unittest.TestCase):
                 {"loudness", "size"},
                 f"layer {layer}",
             )
+
+    def test_carrier_and_utterance_scales_form_one_family(self) -> None:
+        # The layer-3 shape of the first real run: three utterance scales whose
+        # p-values all pass BH among themselves (m = 3) and none of which pass
+        # with the carrier scales they are reported alongside (m = 22). The
+        # second answer is the report's, so it must be the ledger's too.
+        temp = tempfile.TemporaryDirectory()
+        self.addCleanup(temp.cleanup)
+        run = runs.load(runfixture.build(Path(temp.name)))
+
+        def result(scale: str, condition: str, p: float) -> dict:
+            return {
+                "scale_id": scale,
+                "condition": condition,
+                "remove_top": 0,
+                "p_permutation": p,
+            }
+
+        carrier = [result(f"lexical{i}", "carrier", 0.5) for i in range(19)]
+        utterance = [
+            result("politeness", "utterance", 0.0139),
+            result("formality", "utterance", 0.0167),
+            result("hedging", "utterance", 0.0167),
+        ]
+        document = {"model": "m", "layer": 3, "results": carrier + utterance}
+        rows = records.measurement_rows(run, [("layer03.json", document)])
+
+        self.assertEqual(records.benjamini_hochberg([0.0139, 0.0167, 0.0167], 0.05), 3)
+        self.assertFalse(any(r["significant"] for r in rows))
+
+    def test_bare_items_are_corrected_as_their_own_family(self) -> None:
+        # 0.002 passes rank 1 among 19 bare scales (threshold 0.0026) and would
+        # not among 41 if bare were pooled with the contextual group (0.0012).
+        temp = tempfile.TemporaryDirectory()
+        self.addCleanup(temp.cleanup)
+        run = runs.load(runfixture.build(Path(temp.name)))
+        results = [
+            {"scale_id": f"s{i}", "condition": condition, "remove_top": 0,
+             "p_permutation": 0.002 if (condition, i) == ("bare", 0) else 0.5}
+            for condition in ("bare", "carrier")
+            for i in range(19)
+        ] + [
+            {"scale_id": f"u{i}", "condition": "utterance", "remove_top": 0,
+             "p_permutation": 0.5}
+            for i in range(3)
+        ]
+        document = {"model": "m", "layer": 3, "results": results}
+        rows = records.measurement_rows(run, [("layer03.json", document)])
+
+        significant = {(r["condition"], r["scale_id"]) for r in rows if r["significant"]}
+        self.assertEqual(significant, {("bare", "s0")})
 
     def test_an_explicit_decision_from_the_runtime_wins(self) -> None:
         temp = tempfile.TemporaryDirectory()

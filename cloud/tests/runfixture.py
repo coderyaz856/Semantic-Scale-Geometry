@@ -26,14 +26,23 @@ STATUS = {
 MANIFEST = {
     "git_commit": "0" * 40,
     "config_digest": "a" * 64,
-    "model_id": "sentence-transformers/all-MiniLM-L6-v2",
-    "model_revision": "c" * 40,
-    "scales_digest": "d" * 64,
-    "background_digest": "e" * 64,
+    "config": {
+        "model": {
+            "id": "sentence-transformers/all-MiniLM-L6-v2",
+            "revision": "c" * 40,
+            "device": "cpu",
+        }
+    },
+    "inputs": {
+        "scales_sha256": "d" * 64,
+        "background_sha256": "e" * 64,
+    },
     "container_digest": "sha256:" + "f" * 64,
-    "device": "cpu",
     "duration_seconds": 252.0,
 }
+
+MODEL_ID = MANIFEST["config"]["model"]["id"]
+MODEL_REVISION = MANIFEST["config"]["model"]["revision"]
 
 
 def measurement(layer: int, p_values: dict[str, float]) -> dict:
@@ -60,7 +69,7 @@ def measurement(layer: int, p_values: dict[str, float]) -> dict:
             }
         )
     return {
-        "model": MANIFEST["model_id"],
+        "model": MODEL_ID,
         "layer": layer,
         "pooling": "mean",
         "dim": 384,
@@ -73,7 +82,7 @@ def subspace(layer: int) -> list[dict]:
     """One subspace document: the format sg-subspace already writes."""
     return [
         {
-            "model": MANIFEST["model_id"],
+            "model": MODEL_ID,
             "layer": layer,
             "pooling": "mean",
             "condition": "carrier",

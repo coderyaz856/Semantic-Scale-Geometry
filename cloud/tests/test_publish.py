@@ -99,8 +99,8 @@ class PublishTests(unittest.TestCase):
         self.assertEqual(caught.exception.code, Exit.VERIFICATION_FAILED)
 
     def test_missing_provenance_is_reported_and_does_not_block(self) -> None:
-        manifest = dict(runfixture.MANIFEST)
-        del manifest["model_revision"]
+        manifest = json.loads(json.dumps(runfixture.MANIFEST))
+        del manifest["config"]["model"]["revision"]
         run = runs.load(
             runfixture.build(self.root, run_id="run-thin", manifest=manifest)
         )

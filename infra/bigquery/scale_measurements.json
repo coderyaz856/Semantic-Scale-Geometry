@@ -69,7 +69,7 @@
     "name": "significant",
     "type": "BOOLEAN",
     "mode": "NULLABLE",
-    "description": "Benjamini-Hochberg decision at the adapter's configured level over one family: the scales sharing this run, model, layer, condition and remove_top. Platform-side convenience only; the report in the run directory is authoritative, and a false value does not mean the scale lacks a gradient."
+    "description": "Benjamini-Hochberg decision at the adapter's configured level over one family: the scales sharing this run, model, layer and remove_top within one condition group, where carrier and utterance form the contextual group and bare its own, as in tools/report.py. Platform-side convenience only; the report in the run directory is authoritative, and a false value does not mean the scale lacks a gradient."
   },
   {
     "name": "context_stability",

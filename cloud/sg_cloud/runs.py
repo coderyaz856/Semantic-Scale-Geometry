@@ -12,13 +12,11 @@ The directory contract is the one frozen in docs/production-roadmap.md:
       measurements/
       report/
 
-The runtime that writes it is being implemented on a separate branch, so the
-exact key spellings inside ``status.json`` and ``manifest.json`` are an
-assumption, not an observation. Two rules keep that assumption honest. Every
-field this adapter needs is listed once, in ``STATUS_FIELDS`` and
-``MANIFEST_FIELDS``, with the alternative spellings it will accept, so
-reconciling with the runtime is an edit in one place. And a field that cannot
-be found is published as null rather than inferred: a wrong provenance value is
+The runtime and cloud adapter share this contract. Every field the adapter
+needs is listed once, in ``STATUS_FIELDS`` and ``MANIFEST_FIELDS``. The first
+path for each manifest field is the runtime's versioned spelling; later paths
+retain compatibility with early platform fixtures. A field that cannot be
+found is published as null rather than inferred: a wrong provenance value is
 worse than a missing one, because only the missing one is visible.
 
 Result documents are classified by shape rather than by filename, for the same
@@ -60,12 +58,25 @@ STATUS_FIELDS: dict[str, tuple[str, ...]] = {
 MANIFEST_FIELDS: dict[str, tuple[str, ...]] = {
     "git_commit": ("git_commit",),
     "config_digest": ("config_digest",),
-    "model_id": ("model_id", "model.id", "config.model"),
-    "model_revision": ("model_revision", "model.revision", "config.model_revision"),
-    "scales_digest": ("scales_digest", "inputs.scales_digest"),
-    "background_digest": ("background_digest", "inputs.background_digest"),
+    "model_id": ("config.model.id", "model_id", "model.id"),
+    "model_revision": (
+        "config.model.revision",
+        "model_revision",
+        "model.revision",
+        "config.model_revision",
+    ),
+    "scales_digest": (
+        "inputs.scales_sha256",
+        "scales_digest",
+        "inputs.scales_digest",
+    ),
+    "background_digest": (
+        "inputs.background_sha256",
+        "background_digest",
+        "inputs.background_digest",
+    ),
     "container_digest": ("container_digest",),
-    "device": ("device", "config.device"),
+    "device": ("config.model.device", "device", "config.device"),
     "duration_seconds": ("duration_seconds", "timings.total_seconds"),
 }
 

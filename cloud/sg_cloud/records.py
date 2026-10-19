@@ -8,11 +8,17 @@ reinterpretation, with one exception that is called out below.
 The exception is ``significant``. The schema asks for a decision and the
 measurement files contain only p-values, so the decision is made here, with the
 same family definition the repository's own report uses: the scales measured at
-one layer, in one condition, under one preprocessing setting. Two warnings
-travel with it. If the layer or the setting was chosen after looking at
-results, the real family is larger than this one and the survivors are
-optimistic. And a scale that does not survive has not been shown to lack a
-gradient; with six items per scale the test has little power to begin with.
+one layer, under one preprocessing setting, in one condition *group*. Carrier
+frames and utterances form the contextual group, every scale once; bare lexical
+items form their own. The unit is the group, not the single condition: three
+utterance scales corrected among themselves would face a threshold seven times
+more lenient than the same scales corrected with the rest.
+
+Two warnings travel with the decision. If the layer or the setting was chosen
+after looking at results, the real family is larger than this one and the
+survivors are optimistic. And a scale that does not survive has not been shown
+to lack a gradient: with five or six items per scale the exact permutation test
+has a floor of 1/k!, which leaves it little power to begin with.
 
 Where a measurement document already carries an explicit ``significant`` field,
 that field wins, so the day the runtime decides this itself the adapter stops
@@ -70,6 +76,15 @@ MEASUREMENT_KEY = (
 )
 
 SUBSPACE_KEY = ("run_id", "model_id", "layer", "condition", "remove_top")
+
+#: The condition measured without context. Every other condition belongs to the
+#: contextual group, which is the family tools/report.py corrects over.
+BARE_CONDITION = "bare"
+
+
+def condition_group(condition: str | None) -> str:
+    """The multiple-testing group a condition belongs to."""
+    return "bare" if condition == BARE_CONDITION else "contextual"
 
 
 def _number(value: Any) -> float | None:
@@ -142,7 +157,7 @@ def _apply_significance(rows: list[dict], alpha: float) -> None:
             row["run_id"],
             row["model_id"],
             row["layer"],
-            row["condition"],
+            condition_group(row["condition"]),
             row["remove_top"],
         )
         families.setdefault(family, []).append(row)
