@@ -507,7 +507,9 @@ loudness, size and valence, carrier condition, layer 6) and none at layers 0 to
 5. The exact permutation p-values do not depend on the reduced draws, which is
 why the decisions can agree although the configurations differ.
 
-Cost figures will be added from the billing report rather than estimated.
+Cost figures will be added from the billing report rather than estimated. Every
+command behind this record, with its output, is in
+[`operations/first-deployment.md`](operations/first-deployment.md).
 
 ## Validation
 
