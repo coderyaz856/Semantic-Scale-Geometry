@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/coderyaz856/Semantic-Scale-Geometry/schemas/run-status.schema.json",
+  "title": "Semantic Scale Geometry run status",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["format", "run_id", "state", "created_at", "updated_utc"],
+  "properties": {
+    "format": {"const": "semantic-scale-geometry/run-status/1"},
+    "run_id": {"type": "string", "pattern": "^[0-9a-f]{20}$"},
+    "state": {
+      "enum": [
+        "CREATED",
+        "VALIDATED",
+        "EXTRACTING",
+        "MEASURING",
+        "ANALYSING",
+        "REPORTING",
+        "SUCCEEDED",
+        "FAILED"
+      ]
+    },
+    "created_at": {"type": "string"},
+    "completed_at": {"type": ["string", "null"]},
+    "duration_seconds": {"type": "number", "minimum": 0},
+    "error_code": {"type": ["string", "null"]},
+    "updated_utc": {"type": "string"},
+    "error": {"type": ["object", "null"]}
+  }
+}

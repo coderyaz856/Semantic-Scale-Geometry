@@ -1,0 +1,80 @@
+[
+  {
+    "name": "run_id",
+    "type": "STRING",
+    "mode": "REQUIRED",
+    "description": "Run that produced this row. Part of the merge key and the first clustering column."
+  },
+  {
+    "name": "model_id",
+    "type": "STRING",
+    "mode": "REQUIRED",
+    "description": "Model identifier the shard was extracted from."
+  },
+  {
+    "name": "layer",
+    "type": "INTEGER",
+    "mode": "REQUIRED",
+    "description": "Hidden-layer index, zero being the embedding layer before any attention. The partitioning column."
+  },
+  {
+    "name": "scale_id",
+    "type": "STRING",
+    "mode": "REQUIRED",
+    "description": "Scale whose declared ordering was tested."
+  },
+  {
+    "name": "condition",
+    "type": "STRING",
+    "mode": "REQUIRED",
+    "description": "Context condition: bare items, items in carrier frames, or whole utterances. Directions are comparable only within one condition."
+  },
+  {
+    "name": "remove_top",
+    "type": "INTEGER",
+    "mode": "REQUIRED",
+    "description": "Number of dominant background components projected out before fitting. Components are projected out, not whitened: variance along the surviving axes is not rescaled."
+  },
+  {
+    "name": "in_sample_order",
+    "type": "FLOAT",
+    "mode": "NULLABLE",
+    "description": "Spearman correlation between the declared ranks and the projections of the same items the direction was fitted on. An optimistic number by construction, kept because its gap to the held-out figure is the diagnostic."
+  },
+  {
+    "name": "leave_one_out_order",
+    "type": "FLOAT",
+    "mode": "NULLABLE",
+    "description": "Spearman correlation under leave-one-out refitting: each item is ordered by a direction fitted without it. This is the statistic that carries the claim."
+  },
+  {
+    "name": "supervised_variance_share",
+    "type": "FLOAT",
+    "mode": "NULLABLE",
+    "description": "Share of the centred items' variance along the rank-supervised direction. Bounded above by unsupervised_pc1_share, since no direction can beat the leading principal component on its own criterion."
+  },
+  {
+    "name": "unsupervised_pc1_share",
+    "type": "FLOAT",
+    "mode": "NULLABLE",
+    "description": "Share of variance along the leading principal component of the same items, computed without the ranks. The gap to the supervised share separates how linear the item set is from how well the ranks pick out that line."
+  },
+  {
+    "name": "permutation_p",
+    "type": "FLOAT",
+    "mode": "NULLABLE",
+    "description": "Permutation p-value over orderings of the k items, exact by exhaustive enumeration when k! is small enough. Its floor is 1/k!, so a five-item scale cannot report a value below 0.0083 however perfectly ordered."
+  },
+  {
+    "name": "significant",
+    "type": "BOOLEAN",
+    "mode": "NULLABLE",
+    "description": "Benjamini-Hochberg decision at the adapter's configured level over one family: the scales sharing this run, model, layer and remove_top within one condition group, where carrier and utterance form the contextual group and bare its own, as in tools/report.py. Platform-side convenience only; the report in the run directory is authoritative, and a false value does not mean the scale lacks a gradient."
+  },
+  {
+    "name": "context_stability",
+    "type": "FLOAT",
+    "mode": "NULLABLE",
+    "description": "Dispersion, not a score: the standard deviation of the leave-one-out statistic across carrier contexts. Lower is more stable. Null for single-context conditions and when bootstrapping was disabled."
+  }
+]

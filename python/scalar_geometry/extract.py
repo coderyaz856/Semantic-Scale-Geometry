@@ -23,6 +23,7 @@ vectors; a cross-backend extraction benchmark remains future work.
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -39,10 +40,15 @@ DEFAULT_BATCH_SIZE = 16
 @dataclass(frozen=True)
 class ExtractionConfig:
     model: str
+    revision: str
     max_length: int = DEFAULT_MAX_LENGTH
     batch_size: int = DEFAULT_BATCH_SIZE
     device: str = "cpu"
     pooling: str = "mean"
+
+    def __post_init__(self) -> None:
+        if not re.fullmatch(r"[0-9a-fA-F]{40}", self.revision):
+            raise ValueError("model revision must be a 40-character commit SHA")
 
 
 def pin_determinism() -> None:
@@ -89,8 +95,15 @@ def embed(texts: list[str], config: ExtractionConfig) -> np.ndarray:
     layer 0 is the embedding layer before any transformer block.
     """
     pin_determinism()
-    tokenizer = AutoTokenizer.from_pretrained(config.model)
-    model = AutoModel.from_pretrained(config.model, dtype=torch.float32)
+    tokenizer = AutoTokenizer.from_pretrained(
+        config.model,
+        revision=config.revision,
+    )
+    model = AutoModel.from_pretrained(
+        config.model,
+        revision=config.revision,
+        dtype=torch.float32,
+    )
     model.eval()
     model.to(config.device)
 
@@ -146,6 +159,7 @@ def write_shards(
         sidecar = {
             "format": "scalar-geometry/shard/1",
             "model": config.model,
+            "model_revision": config.revision,
             "layer": layer,
             "n_layers": n_layers,
             "dim": dim,

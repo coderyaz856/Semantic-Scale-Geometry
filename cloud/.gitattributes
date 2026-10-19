@@ -1,0 +1,5 @@
+# The wrapper runs inside a Linux container. Checked out with CRLF endings on
+# a Windows workstation it would fail at its own shebang, with an error that
+# names neither the file nor the reason. Pinning the endings here costs
+# nothing and removes a failure that is genuinely hard to read.
+*.sh text eol=lf

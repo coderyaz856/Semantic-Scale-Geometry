@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/coderyaz856/Semantic-Scale-Geometry/schemas/run-manifest.schema.json",
+  "title": "Semantic Scale Geometry run manifest",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "format",
+    "run_id",
+    "state",
+    "created_utc",
+    "config",
+    "config_digest",
+    "inputs",
+    "stages",
+    "outputs"
+  ],
+  "properties": {
+    "format": {"const": "semantic-scale-geometry/run-manifest/1"},
+    "run_id": {"type": "string", "pattern": "^[0-9a-f]{20}$"},
+    "state": {
+      "enum": [
+        "CREATED",
+        "VALIDATED",
+        "EXTRACTING",
+        "MEASURING",
+        "ANALYSING",
+        "REPORTING",
+        "SUCCEEDED",
+        "FAILED"
+      ]
+    },
+    "created_utc": {"type": "string"},
+    "completed_utc": {"type": ["string", "null"]},
+    "config": {"type": "object"},
+    "config_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "inputs": {
+      "type": "object",
+      "required": ["scales_sha256", "background_sha256"]
+    },
+    "stages": {"type": "object"},
+    "outputs": {"type": "object"},
+    "error": {"type": ["object", "null"]}
+  }
+}

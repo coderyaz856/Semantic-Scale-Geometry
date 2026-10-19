@@ -1,0 +1,4 @@
+# A Dockerfile checked out with CRLF endings breaks line continuations: the
+# carriage return becomes part of the continued command. Same reason as
+# cloud/.gitattributes, different symptom.
+* text eol=lf

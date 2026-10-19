@@ -5,8 +5,8 @@
 Status: research prototype. The numbers below come from one small model and
 should be read as a first pass, not a general finding. Every reported number
 was produced by the pipeline in this repository. The committed seeds and
-artifacts support independent inspection, but exact model-revision pinning and
-automatic run manifests remain on the roadmap.
+artifacts support independent inspection. Production runs require an exact
+model revision and emit versioned manifests, status, logs and output hashes.
 
 ## The question
 
@@ -285,11 +285,18 @@ and preserved by the two publication branches.
 Python 3.10 or newer and a Rust toolchain are required. The fast verification
 path does not download a transformer model or require a GPU.
 
+For a versioned, resumable production run with immutable output identities,
+automatic manifests, and structured status, see
+[`docs/runtime.md`](docs/runtime.md). The Google Cloud batch platform, immutable
+artifact publication and BigQuery ledger are documented in
+[`docs/cloud-deployment.md`](docs/cloud-deployment.md).
+
 ```sh
 python -m venv .venv
 python -m pip install -e ".[dev]"
 python -m unittest discover -s python/tests -v
-ruff check python tools
+python -m unittest discover -s cloud/tests -v
+ruff check python tools cloud
 cargo fmt --manifest-path kernel/Cargo.toml --check
 cargo clippy --manifest-path kernel/Cargo.toml --all-targets -- -D warnings
 cargo test --manifest-path kernel/Cargo.toml --release
@@ -313,10 +320,10 @@ Two properties are enforced by the current tests:
 
 Extraction uses fixed-length padding, float32 inference and deterministic
 algorithm requests to reduce avoidable variation. This is not a claim of
-bit-for-bit identity across hardware backends. Manifest utilities can record a
-commit, dirty-tree state, container digest and configuration digest, but they
-are not yet wired into `sg extract`; model-revision pinning and automatic
-manifest emission are the next reproducibility milestone.
+bit-for-bit identity across hardware backends. `sg run` requires an exact model
+commit, derives an immutable run identity from the configuration and inputs,
+and records the Git state, container digest, dependencies, hardware, timings,
+and output hashes in its manifest.
 
 ## Cost
 

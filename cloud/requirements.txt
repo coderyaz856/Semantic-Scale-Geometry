@@ -1,0 +1,10 @@
+# Cloud-adapter dependencies only. They are deliberately not in the project's
+# pyproject.toml: the measurement runtime must stay installable, and testable,
+# without a cloud SDK, and the adapter must stay installable without torch.
+#
+# Lower bounds rather than exact pins, with the upper bound of the current
+# major line. The adapter uses a small, stable surface of both clients
+# (buckets, blobs, load jobs, query jobs), and a lock file belongs to the
+# image build rather than to this file.
+google-cloud-storage>=2.18,<4
+google-cloud-bigquery>=3.25,<4

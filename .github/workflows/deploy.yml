@@ -1,0 +1,160 @@
+name: deploy
+
+# Deployment is manual and separate from validation. ci.yml decides whether a
+# commit is correct; this decides that a correct commit becomes the image the
+# cloud runs. Keeping them apart means a pull request cannot deploy, and a
+# deployment cannot be an accident of a merge.
+#
+# No key is downloaded. The workflow exchanges the job's OIDC token for a short
+# lived Google credential through Workload Identity Federation, which is why
+# `id-token: write` is requested and why no secret holds a private key.
+#
+# Required repository variables (Settings -> Actions -> Variables):
+#
+#   GCP_PROJECT_ID                  target project
+#   GCP_REGION                      region of the registry and the job
+#   GCP_WORKLOAD_IDENTITY_PROVIDER  projects/<number>/locations/global/
+#                                   workloadIdentityPools/<pool>/providers/<provider>
+#   GCP_DEPLOY_SERVICE_ACCOUNT      service account this workflow impersonates
+#   GCP_ARTIFACT_REPOSITORY         Artifact Registry repository id
+#   GCP_JOB_NAME                    Cloud Run Job name
+#
+# No repository secret is required. That is the point of federation, and it is
+# worth stating explicitly, because the usual shape of this workflow has a
+# service-account key in a secret called GCP_SA_KEY.
+#
+# The deploying identity needs: roles/artifactregistry.writer on the
+# repository, roles/run.developer on the job, and
+# roles/iam.serviceAccountUser on the job's runtime service account. It does
+# not need to execute the job, so it is not granted run.invoker.
+
+on:
+  workflow_dispatch:
+    inputs:
+      deploy_job:
+        description: Update the Cloud Run Job to the image built here
+        type: boolean
+        default: true
+
+concurrency:
+  # Two deployments of different commits must not interleave their job update.
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  image:
+    name: build, publish and deploy
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      id-token: write
+
+    env:
+      REGISTRY: ${{ vars.GCP_REGION }}-docker.pkg.dev
+      IMAGE_PATH: ${{ vars.GCP_PROJECT_ID }}/${{ vars.GCP_ARTIFACT_REPOSITORY }}/measure
+
+    steps:
+      - name: Check out the commit being deployed
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Confirm the required variables are set
+        # Failing here costs a second. Failing after the build costs the build,
+        # and failing after the push leaves a tagged image nothing points at.
+        run: |
+          missing=0
+          for name in GCP_PROJECT_ID GCP_REGION GCP_WORKLOAD_IDENTITY_PROVIDER \
+                      GCP_DEPLOY_SERVICE_ACCOUNT GCP_ARTIFACT_REPOSITORY GCP_JOB_NAME; do
+            eval "value=\${$name}"
+            if [ -z "${value}" ]; then
+              echo "repository variable ${name} is not set"
+              missing=1
+            fi
+          done
+          exit "${missing}"
+        env:
+          GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+          GCP_REGION: ${{ vars.GCP_REGION }}
+          GCP_WORKLOAD_IDENTITY_PROVIDER: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          GCP_DEPLOY_SERVICE_ACCOUNT: ${{ vars.GCP_DEPLOY_SERVICE_ACCOUNT }}
+          GCP_ARTIFACT_REPOSITORY: ${{ vars.GCP_ARTIFACT_REPOSITORY }}
+          GCP_JOB_NAME: ${{ vars.GCP_JOB_NAME }}
+
+      - name: Authenticate through Workload Identity Federation
+        id: auth
+        uses: google-github-actions/auth@c200f3691d83b41bf9bbd8638997a462592937ed # v2.1.13
+        with:
+          project_id: ${{ vars.GCP_PROJECT_ID }}
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_DEPLOY_SERVICE_ACCOUNT }}
+
+      - name: Set up the cloud CLI
+        uses: google-github-actions/setup-gcloud@e427ad8a34f8676edf47cf7d7925499adf3eb74f # v2.2.1
+
+      - name: Allow the daemon to push to Artifact Registry
+        run: gcloud auth configure-docker "${REGISTRY}" --quiet
+
+      - name: Look for an image already built from this commit
+        id: existing
+        # Tags are immutable in the registry, so a repeated deployment of one
+        # commit must reuse its image rather than try to overwrite it. This
+        # also makes re-running a failed deployment cheap.
+        run: |
+          image="${REGISTRY}/${IMAGE_PATH}:${GITHUB_SHA}"
+          if gcloud artifacts docker images describe "${image}" --quiet > /dev/null 2>&1; then
+            echo "found=true" >> "${GITHUB_OUTPUT}"
+          else
+            echo "found=false" >> "${GITHUB_OUTPUT}"
+          fi
+
+      - name: Build the job image
+        if: steps.existing.outputs.found == 'false'
+        run: |
+          docker build \
+            --file docker/job.Dockerfile \
+            --tag "${REGISTRY}/${IMAGE_PATH}:${GITHUB_SHA}" \
+            .
+
+      - name: Publish the job image
+        if: steps.existing.outputs.found == 'false'
+        run: docker push "${REGISTRY}/${IMAGE_PATH}:${GITHUB_SHA}"
+
+      - name: Record the published digest
+        id: digest
+        # The commit tag says which source produced the image; the digest says
+        # which bytes. Both are printed in the summary, because the digest is
+        # what a result should be traced to and it does not exist until now.
+        run: |
+          image="${REGISTRY}/${IMAGE_PATH}:${GITHUB_SHA}"
+          digest=$(gcloud artifacts docker images describe "${image}" \
+            --format='value(image_summary.digest)')
+          echo "digest=${digest}" >> "${GITHUB_OUTPUT}"
+
+      - name: Update the Cloud Run Job
+        if: ${{ inputs.deploy_job }}
+        # Deployed by digest, not by tag: the job then runs the exact bytes
+        # this workflow published, whatever happens to the tag afterwards.
+        run: |
+          gcloud run jobs update "${{ vars.GCP_JOB_NAME }}" \
+            --region "${{ vars.GCP_REGION }}" \
+            --project "${{ vars.GCP_PROJECT_ID }}" \
+            --image "${REGISTRY}/${IMAGE_PATH}@${{ steps.digest.outputs.digest }}" \
+            --args="--container-digest=${{ steps.digest.outputs.digest }}" \
+            --quiet
+
+      - name: Summarise what was deployed
+        run: |
+          {
+            echo "### Deployment"
+            echo
+            echo "| field | value |"
+            echo "| --- | --- |"
+            echo "| commit | \`${GITHUB_SHA}\` |"
+            echo "| image | \`${REGISTRY}/${IMAGE_PATH}:${GITHUB_SHA}\` |"
+            echo "| digest | \`${{ steps.digest.outputs.digest }}\` |"
+            echo "| rebuilt | ${{ steps.existing.outputs.found == 'false' }} |"
+            echo "| job updated | ${{ inputs.deploy_job }} |"
+            echo
+            echo "No execution was started. Running the job is a separate,"
+            echo "billable step."
+          } >> "${GITHUB_STEP_SUMMARY}"

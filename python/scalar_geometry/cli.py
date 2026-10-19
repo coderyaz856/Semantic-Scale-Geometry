@@ -1,11 +1,12 @@
 """The ``sg`` command line.
 
-Four subcommands:
+Five subcommands:
 
 ``plan``     count the work before any of it runs or costs anything
 ``synth``    write a shard of synthetic vectors, no model and no GPU needed
 ``extract``  embed the scales with a real model and write one shard per layer
 ``measure``  run the Rust kernel over a shard
+``run``      execute a versioned, resumable production experiment
 
 ``synth`` exists so the whole interchange path, the binary layout, the sidecar,
 the grouping and the statistics, can be exercised end to end with a planted
@@ -137,8 +138,7 @@ def _synth_rows(
                 for vector in basis:
                     weight = r.gauss(0.0, 1.0)
                     direction = [
-                        a + weight * b
-                        for a, b in zip(direction, vector, strict=True)
+                        a + weight * b for a, b in zip(direction, vector, strict=True)
                     ]
                 direction = _unit(direction)
             else:
@@ -256,6 +256,7 @@ def cmd_extract(args: argparse.Namespace) -> int:
     background = load_background(args.background) if args.background else []
     config = ExtractionConfig(
         model=args.model,
+        revision=args.revision,
         max_length=args.max_length,
         batch_size=args.batch_size,
         device=args.device,
@@ -313,6 +314,20 @@ def cmd_measure(args: argparse.Namespace) -> int:
     return completed.returncode
 
 
+def cmd_run(args: argparse.Namespace) -> int:
+    from .config import ConfigError
+    from .runtime import RunError, run_experiment
+
+    try:
+        result = run_experiment(args.config, args.run_root)
+    except (ConfigError, RunError, OSError, ValueError) as error:
+        print(f"sg: {error}", file=sys.stderr)
+        return 2
+    action = "reused" if result.reused else "completed"
+    print(f"{action} run {result.run_id} at {result.run_dir}")
+    return 0
+
+
 # -------------------------------------------------------------------- main
 
 
@@ -357,6 +372,11 @@ def build_parser() -> argparse.ArgumentParser:
     extract = sub.add_parser("extract", help="embed the scales with a real model")
     extract.add_argument("--scales", default=DEFAULT_SCALES)
     extract.add_argument("--model", required=True)
+    extract.add_argument(
+        "--revision",
+        required=True,
+        help="exact 40-character model commit SHA",
+    )
     extract.add_argument("--out", required=True)
     extract.add_argument("--background", default=None)
     extract.add_argument("--max-length", type=int, default=48)
@@ -382,6 +402,11 @@ def build_parser() -> argparse.ArgumentParser:
     )
     measure.add_argument("--null-replicates", type=int, default=50)
     measure.set_defaults(func=cmd_measure)
+
+    run = sub.add_parser("run", help="execute a production experiment")
+    run.add_argument("--config", required=True)
+    run.add_argument("--run-root", required=True)
+    run.set_defaults(func=cmd_run)
 
     return parser
 
